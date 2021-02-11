@@ -172,7 +172,7 @@
 /obj/machinery/chem_master/ui_data(mob/user)
 	var/list/data = list()
 	data["isBeakerLoaded"] = beaker ? 1 : 0
-	data["beakerCurrentVolume"] = beaker ? beaker.reagents.total_volume : null
+	data["beakerCurrentVolume"] = beaker ? round(beaker.reagents.total_volume, 0.01) : null
 	data["beakerMaxVolume"] = beaker ? beaker.volume : null
 	data["mode"] = mode
 	data["condi"] = condi
@@ -188,14 +188,14 @@
 	var/beakerContents[0]
 	if(beaker)
 		for(var/datum/reagent/R in beaker.reagents.reagent_list)
-			beakerContents.Add(list(list("name" = R.name, "id" = ckey(R.name), "volume" = R.volume))) // list in a list because Byond merges the first list...
-	data["beakerContents"] = beakerContents
+			beaker_contents.Add(list(list("name" = R.name, "id" = ckey(R.name), "volume" = round(R.volume, 0.01)))) // list in a list because Byond merges the first list...
+	data["beakerContents"] = beaker_contents
 
 	var/bufferContents[0]
 	if(reagents.total_volume)
 		for(var/datum/reagent/N in reagents.reagent_list)
-			bufferContents.Add(list(list("name" = N.name, "id" = ckey(N.name), "volume" = N.volume))) // ^
-	data["bufferContents"] = bufferContents
+			buffer_contents.Add(list(list("name" = N.name, "id" = ckey(N.name), "volume" = round(N.volume, 0.01)))) // ^
+	data["bufferContents"] = buffer_contents
 
 	//Calculated at init time as it never changes
 	data["pillStyles"] = pillStyles
@@ -205,73 +205,92 @@
 	if(..())
 		return
 
-	switch(action)
-		if("eject")
-			replace_beaker(usr)
-			. = TRUE
-		if("ejectPillBottle")
-			if(!bottle)
-				return
-			bottle.forceMove(drop_location())
-			adjust_item_drop_location(bottle)
-			bottle = null
-			. = TRUE
-		if("transfer")
-			if(!beaker)
-				return
-			var/reagent = GLOB.name2reagent[params["id"]]
-			var/amount = text2num(params["amount"])
-			var/to_container = params["to"]
-			// Custom amount
-			if (amount == -1)
-				amount = text2num(input(
-					"Enter the amount you want to transfer:",
-					name, ""))
-			if (amount == null || amount <= 0)
-				return
-			if (to_container == "buffer")
-				beaker.reagents.trans_id_to(src, reagent, amount)
-				. = TRUE
-			else if (to_container == "beaker" && mode)
-				reagents.trans_id_to(beaker, reagent, amount)
-				. = TRUE
-			else if (to_container == "beaker" && !mode)
-				reagents.remove_reagent(reagent, amount)
-				. = TRUE
-		if("toggleMode")
-			mode = !mode
-			. = TRUE
-		if("pillStyle")
-			var/id = text2num(params["id"])
-			chosenPillStyle = id
-			. = TRUE
-		if("create")
-			if(reagents.total_volume == 0)
-				return
-			var/item_type = params["type"]
-			// Get amount of items
-			var/amount = text2num(params["amount"])
-			if(amount == null)
-				amount = text2num(input(usr,
-					"Max 10. Buffer content will be split evenly.",
-					"How many to make?", 1))
-			amount = clamp(round(amount), 0, 10)
-			if (amount <= 0)
-				return
-			// Get units per item
-			var/vol_each = text2num(params["volume"])
-			var/vol_each_text = params["volume"]
-			var/vol_each_max = reagents.total_volume / amount
-			if (item_type == "pill" && !condi)
-				vol_each_max = min(50, vol_each_max)
-			else if (item_type == "patch" && !condi)
-				vol_each_max = min(40, vol_each_max)
-			else if (item_type == "bottle" && !condi)
-				vol_each_max = min(30, vol_each_max)
-			else if (item_type == "condimentPack" && condi)
-				vol_each_max = min(10, vol_each_max)
-			else if (item_type == "condimentBottle" && condi)
-				vol_each_max = min(50, vol_each_max)
+	if(action == "eject")
+		replace_beaker(usr)
+		return TRUE
+
+	if(action == "ejectPillBottle")
+		if(!bottle)
+			return FALSE
+		bottle.forceMove(drop_location())
+		adjust_item_drop_location(bottle)
+		bottle = null
+		return TRUE
+
+	if(action == "transfer")
+		var/reagent = GLOB.name2reagent[params["id"]]
+		var/amount = text2num(params["amount"])
+		var/to_container = params["to"]
+		// Custom amount
+		if (amount == -1)
+			amount = text2num(input(
+				"Enter the amount you want to transfer:",
+				name, ""))
+		if (amount == null || amount <= 0)
+			return FALSE
+		if (to_container == "beaker" && !mode)
+			reagents.remove_reagent(reagent, amount)
+			return TRUE
+		if (!beaker)
+			return FALSE
+		if (to_container == "buffer")
+			var/datum/reagent/R = beaker.reagents.get_reagent(reagent)
+			if(!check_reactions(R, beaker.reagents))
+				return FALSE
+			beaker.reagents.trans_id_to(src, reagent, amount)
+			return TRUE
+		if (to_container == "beaker" && mode)
+			var/datum/reagent/R = reagents.get_reagent(reagent)
+			if(!check_reactions(R, reagents))
+				return FALSE
+			reagents.trans_id_to(beaker, reagent, amount)
+			return TRUE
+		return FALSE
+
+	if(action == "toggleMode")
+		mode = !mode
+		return TRUE
+
+	if(action == "pillStyle")
+		var/id = text2num(params["id"])
+		chosen_pill_style = id
+		return TRUE
+
+	if(action == "condiStyle")
+		chosen_condi_style = params["id"]
+		return TRUE
+
+	if(action == "create")
+		if(reagents.total_volume == 0)
+			return FALSE
+		var/item_type = params["type"]
+		// Get amount of items
+		var/amount = text2num(params["amount"])
+		if(amount == null)
+			amount = text2num(input(usr,
+				"Max 10. Buffer content will be split evenly.",
+				"How many to make?", 1))
+		amount = clamp(round(amount), 0, 10)
+		if (amount <= 0)
+			return FALSE
+		// Get units per item
+		var/vol_each = text2num(params["volume"])
+		var/vol_each_text = params["volume"]
+		var/vol_each_max = reagents.total_volume / amount
+		var/list/style
+
+		if (item_type == "pill")
+			vol_each_max = min(50, vol_each_max)
+		else if (item_type == "patch")
+			vol_each_max = min(40, vol_each_max)
+		else if (item_type == "bottle")
+			vol_each_max = min(30, vol_each_max)
+		else if (item_type == "condimentPack")
+			vol_each_max = min(10, vol_each_max)
+		else if (item_type == "condimentBottle")
+			var/list/styles = get_condi_styles()
+			if (chosen_condi_style == CONDIMASTER_STYLE_AUTO || !(chosen_condi_style in styles))
+				style = guess_condi_style(reagents)
 			else
 				return
 			if(vol_each_text == "auto")
@@ -385,11 +404,119 @@
 		else if(num < 0)
 			num = 0
 		else
-			num = round(num)
-		return num
-	else
-		return 0
+			return FALSE
+		if(vol_each_text == "auto")
+			vol_each = vol_each_max
+		if(vol_each == null)
+			vol_each = text2num(input(usr,
+				"Maximum [vol_each_max] units per item.",
+				"How many units to fill?",
+				vol_each_max))
+		vol_each = round(clamp(vol_each, 0, vol_each_max), 0.01)
+		if(vol_each <= 0)
+			return FALSE
+		// Get item name
+		var/name = params["name"]
+		var/name_has_units = item_type == "pill" || item_type == "patch"
+		if(!name)
+			var/name_default
+			if (style && style["name"] && !style["generate_name"])
+				name_default = style["name"]
+			else
+				name_default = reagents.get_master_reagent_name()
+			if (name_has_units)
+				name_default += " ([vol_each]u)"
+			name = stripped_input(usr,
+				"Name:",
+				"Give it a name!",
+				name_default,
+				MAX_NAME_LEN)
+		if(!name || !reagents.total_volume || !src || QDELETED(src) || !usr.canUseTopic(src, !issilicon(usr)))
+			return FALSE
+		// Start filling
+		if(item_type == "pill")
+			var/obj/item/reagent_containers/pill/P
+			var/target_loc = drop_location()
+			var/drop_threshold = INFINITY
+			if(bottle)
+				var/datum/component/storage/STRB = bottle.GetComponent(
+					/datum/component/storage)
+				if(STRB)
+					drop_threshold = STRB.max_items - bottle.contents.len
+					target_loc = bottle
+			for(var/i = 0; i < amount; i++)
+				if(i < drop_threshold)
+					P = new/obj/item/reagent_containers/pill(target_loc)
+				else
+					P = new/obj/item/reagent_containers/pill(drop_location())
+				P.name = trim("[name] pill")
+				if(chosen_pill_style == RANDOM_PILL_STYLE)
+					P.icon_state ="pill[rand(1,21)]"
+				else
+					P.icon_state = "pill[chosen_pill_style]"
+				if(P.icon_state == "pill4")
+					P.desc = "A tablet or capsule, but not just any, a red one, one taken by the ones not scared of knowledge, freedom, uncertainty and the brutal truths of reality."
+				adjust_item_drop_location(P)
+				reagents.trans_to(P, vol_each, transfered_by = usr)
+			return TRUE
+		if(item_type == "patch")
+			var/obj/item/reagent_containers/pill/patch/P
+			for(var/i = 0; i < amount; i++)
+				P = new/obj/item/reagent_containers/pill/patch(drop_location())
+				P.name = trim("[name] patch")
+				adjust_item_drop_location(P)
+				reagents.trans_to(P, vol_each, transfered_by = usr)
+			return TRUE
+		if(item_type == "bottle")
+			var/obj/item/reagent_containers/glass/bottle/P
+			for(var/i = 0; i < amount; i++)
+				P = new/obj/item/reagent_containers/glass/bottle(drop_location())
+				P.name = trim("[name] bottle")
+				adjust_item_drop_location(P)
+				reagents.trans_to(P, vol_each, transfered_by = usr)
+			return TRUE
+		if(item_type == "condimentPack")
+			var/obj/item/reagent_containers/food/condiment/pack/P
+			for(var/i = 0; i < amount; i++)
+				P = new/obj/item/reagent_containers/food/condiment/pack(drop_location())
+				P.originalname = name
+				P.name = trim("[name] pack")
+				P.desc = "A small condiment pack. The label says it contains [name]."
+				reagents.trans_to(P, vol_each, transfered_by = usr)
+			return TRUE
+		if(item_type == "condimentBottle")
+			var/obj/item/reagent_containers/food/condiment/P
+			for(var/i = 0; i < amount; i++)
+				P = new/obj/item/reagent_containers/food/condiment(drop_location())
+				if (style)
+					apply_condi_style(P, style)
+				P.renamedByPlayer = TRUE
+				P.name = name
+				reagents.trans_to(P, vol_each, transfered_by = usr)
+			return TRUE
+		return FALSE
 
+	if(action == "analyze")
+		var/datum/reagent/R = GLOB.name2reagent[params["id"]]
+		if(R)
+			var/state = "Unknown"
+			if(initial(R.reagent_state) == 1)
+				state = "Solid"
+			else if(initial(R.reagent_state) == 2)
+				state = "Liquid"
+			else if(initial(R.reagent_state) == 3)
+				state = "Gas"
+			var/const/P = 3 //The number of seconds between life ticks
+			var/T = initial(R.metabolization_rate) * (60 / P)
+			analyze_vars = list("name" = initial(R.name), "state" = state, "color" = initial(R.color), "description" = initial(R.description), "metaRate" = T, "overD" = initial(R.overdose_threshold), "addicD" = initial(R.addiction_threshold), "pH" = initial(R.ph))
+			screen = "analyze"
+			return TRUE
+
+	if(action == "goScreen")
+		screen = params["screen"]
+		return TRUE
+
+	return FALSE
 
 /obj/machinery/chem_master/adjust_item_drop_location(atom/movable/AM) // Special version for chemmasters and condimasters
 	if (AM == beaker)
@@ -408,9 +535,153 @@
 		for (var/i in 1 to 32)
 			. += hex2num(md5[i])
 		. = . % 9
-		AM.pixel_x = ((.%3)*6)
-		AM.pixel_y = -8 + (round( . / 3)*8)
+		AM.pixel_x = AM.base_pixel_x + ((.%3)*6)
+		AM.pixel_y = AM.base_pixel_y - 8 + (round( . / 3)*8)
 
+/**
+ * Translates styles data into UI compatible format
+ *
+ * Expects to receive list of availables condiment styles in its complete format, and transforms them in simplified form with enough data to get UI going.
+ * Returns list(list("id" = <key>, "className" = <icon class>, "title" = <name and desc>),..).
+ *
+ * Arguments:
+ * * styles - List of styles for condiment bottles in internal format: [/obj/machinery/chem_master/proc/get_condi_styles]
+ */
+/obj/machinery/chem_master/proc/strip_condi_styles_to_icons(list/styles)
+	var/list/icons = list()
+	for (var/s in styles)
+		if (styles[s] && styles[s]["class_name"])
+			var/list/icon = list()
+			var/list/style = styles[s]
+			icon["id"] = s
+			icon["className"] = style["class_name"]
+			icon["title"] = "[style["name"]]\n[style["desc"]]"
+			icons += list(icon)
+
+	return icons
+
+/**
+ * Defines and provides list of available condiment bottle styles
+ *
+ * Uses typelist() for styles storage after initialization.
+ * For fallback style must provide style with key (const) CONDIMASTER_STYLE_FALLBACK
+ * Returns list(
+ * 	<key> = list(
+ * 		"icon_state" = <bottle icon_state>,
+ * 		"name" = <bottle name>,
+ * 		"desc" = <bottle desc>,
+ * 		?"generate_name" = <if truthy, autogenerates default name from reagents instead of using "name">,
+ * 		?"icon_empty" = <icon_state when empty>,
+ * 		?"fill_icon_thresholds" = <list of thresholds for reagentfillings, no tresholds if not provided or falsy>,
+ * 		?"inhand_icon_state" = <inhand icon_state, falsy - no icon, not provided - whatever is initial (currently "beer")>,
+ * 		?"lefthand_file" = <file for inhand icon for left hand, ignored if "inhand_icon_state" not provided>,
+ * 		?"righthand_file" = <same as "lefthand_file" but for right hand>,
+ * 	),
+ * 	..
+ * )
+ *
+ */
+/obj/machinery/chem_master/proc/get_condi_styles()
+	var/list/styles = typelist("condi_styles")
+	if (!styles.len)
+		//Possible_states has the reagent type as key and a list of, in order, the icon_state, the name and the desc as values. Was used in the condiment/on_reagent_change(changetype) to change names, descs and sprites.
+		styles += list(
+			CONDIMASTER_STYLE_FALLBACK = list("icon_state" = "emptycondiment", "icon_empty" = "", "name" = "condiment bottle", "desc" = "Just your average condiment bottle.", "fill_icon_thresholds" = list(0, 10, 25, 50, 75, 100), "generate_name" = TRUE),
+			"enzyme" = list("icon_state" = "enzyme", "icon_empty" = "", "name" = "universal enzyme bottle", "desc" = "Used in cooking various dishes."),
+			"flour" = list("icon_state" = "flour", "icon_empty" = "", "name" = "flour sack", "desc" = "A big bag of flour. Good for baking!"),
+			"mayonnaise" = list("icon_state" = "mayonnaise", "icon_empty" = "", "name" = "mayonnaise jar", "desc" = "An oily condiment made from egg yolks."),
+			"milk" = list("icon_state" = "milk", "icon_empty" = "", "name" = "space milk", "desc" = "It's milk. White and nutritious goodness!"),
+			"blackpepper" = list("icon_state" = "peppermillsmall", "inhand_icon_state" = "", "icon_empty" = "emptyshaker", "name" = "pepper mill", "desc" = "Often used to flavor food or make people sneeze."),
+			"rice" = list("icon_state" = "rice", "icon_empty" = "", "name" = "rice sack", "desc" = "A big bag of rice. Good for cooking!"),
+			"sodiumchloride" = list("icon_state" = "saltshakersmall", "inhand_icon_state" = "", "icon_empty" = "emptyshaker", "name" = "salt shaker", "desc" = "Salt. From dead crew, presumably."),
+			"soymilk" = list("icon_state" = "soymilk", "icon_empty" = "", "name" = "soy milk", "desc" = "It's soy milk. White and nutritious goodness!"),
+			"soysauce" = list("icon_state" = "soysauce", "inhand_icon_state" = "", "icon_empty" = "", "name" = "soy sauce bottle", "desc" = "A salty soy-based flavoring."),
+			"sugar" = list("icon_state" = "sugar", "icon_empty" = "", "name" = "sugar sack", "desc" = "Tasty spacey sugar!"),
+			"ketchup" = list("icon_state" = "ketchup", "icon_empty" = "", "name" = "ketchup bottle", "desc" = "You feel more American already."),
+			"capsaicin" = list("icon_state" = "hotsauce", "icon_empty" = "", "name" = "hotsauce bottle", "desc" = "You can almost TASTE the stomach ulcers!"),
+			"frostoil" = list("icon_state" = "coldsauce", "icon_empty" = "", "name" = "coldsauce bottle", "desc" = "Leaves the tongue numb from its passage."),
+			"cornoil" = list("icon_state" = "oliveoil", "icon_empty" = "", "name" = "corn oil bottle", "desc" = "A delicious oil used in cooking. Made from corn."),
+			"bbqsauce" = list("icon_state" = "bbqsauce", "icon_empty" = "", "name" = "bbq sauce bottle", "desc" = "Hand wipes not included.")
+		)
+		var/list/carton_in_hand = list(
+			"inhand_icon_state" = "carton",
+			"lefthand_file" = 'icons/mob/inhands/equipment/kitchen_lefthand.dmi',
+			"righthand_file" = 'icons/mob/inhands/equipment/kitchen_righthand.dmi'
+		)
+		for (var/style_reagent in list("flour", "milk", "rice", "soymilk", "sugar"))
+			if (style_reagent in styles)
+				styles[style_reagent] += carton_in_hand
+		var/datum/asset/spritesheet/simple/assets = get_asset_datum(/datum/asset/spritesheet/simple/condiments)
+		for (var/reagent in styles)
+			styles[reagent]["class_name"] = assets.icon_class_name(reagent)
+	return styles
+
+/**
+ * Provides condiment bottle style based on reagents.
+ *
+ * Gets style from available by key, using last part of main reagent type (eg. "rice" for /datum/reagent/consumable/rice) as key.
+ * If not available returns fallback style, or null if no such thing.
+ * Returns list that is one of condibottle styles from [/obj/machinery/chem_master/proc/get_condi_styles]
+ */
+/obj/machinery/chem_master/proc/guess_condi_style(datum/reagents/reagents)
+	var/list/styles = get_condi_styles()
+	if (reagents.reagent_list.len > 0)
+		var/main_reagent = reagents.get_master_reagent_id()
+		if (main_reagent)
+			var/list/path = splittext("[main_reagent]", "/")
+			main_reagent = path[path.len]
+		if(main_reagent in styles)
+			return styles[main_reagent]
+	return styles[CONDIMASTER_STYLE_FALLBACK]
+
+/**
+ * Applies style to condiment bottle.
+ *
+ * Applies props provided in "style" assuming that "container" is freshly created with no styles applied before.
+ * User specified name for bottle applied after this method during bottle creation,
+ * so container.name overwritten here for consistency rather than with some purpose in mind.
+ *
+ * Arguments:
+ * * container - condiment bottle that gets style applied to it
+ * * style - assoc list, must probably one from [/obj/machinery/chem_master/proc/get_condi_styles]
+ */
+/obj/machinery/chem_master/proc/apply_condi_style(obj/item/reagent_containers/food/condiment/container, list/style)
+	container.name = style["name"]
+	container.desc = style["desc"]
+	container.icon_state = style["icon_state"]
+	container.icon_empty = style["icon_empty"]
+	container.fill_icon_thresholds = style["fill_icon_thresholds"]
+	if ("inhand_icon_state" in style)
+		container.inhand_icon_state = style["inhand_icon_state"]
+		if (style["lefthand_file"] || style["righthand_file"])
+			container.lefthand_file = style["lefthand_file"]
+			container.righthand_file = style["righthand_file"]
+
+
+//Checks to see if the target reagent is being created (reacting) and if so prevents transfer
+//Only prevents reactant from being moved so that people can still manlipulate input reagents
+/obj/machinery/chem_master/proc/check_reactions(datum/reagent/reagent, datum/reagents/holder)
+	if(!reagent)
+		return FALSE
+	var/canMove = TRUE
+	for(var/e in holder.reaction_list)
+		var/datum/equilibrium/E = e
+		if(E.reaction.reaction_flags & REACTION_COMPETITIVE)
+			continue
+		for(var/result in E.reaction.required_reagents)
+			var/datum/reagent/R = result
+			if(R == reagent.type)
+				canMove = FALSE
+	if(!canMove)
+		say("Cannot move arrested chemical reaction reagents!")
+	return canMove
+
+/**
+ * Machine that allows to identify and separate reagents in fitting container
+ * as well as to create new containers with separated reagents in it.
+ *
+ * All logic related to this is in [/obj/machinery/chem_master] and condimaster specific UI enabled by "condi = TRUE"
+ */
 /obj/machinery/chem_master/condimaster
 	name = "CondiMaster 3000"
 	desc = "Used to create condiments and other cooking supplies."

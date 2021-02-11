@@ -52,10 +52,14 @@
 	required_reagents = list(/datum/reagent/uranium/radium = 1, /datum/reagent/phosphorus = 1, /datum/reagent/chlorine = 1)
 
 /datum/chemical_reaction/lexorin
-	name = "Lexorin"
-	id = /datum/reagent/toxin/lexorin
-	results = list(/datum/reagent/toxin/lexorin = 4)
-	required_reagents = list(/datum/reagent/toxin/plasma = 1, /datum/reagent/hydrogen = 1, /datum/reagent/oxygen = 1, /datum/reagent/toxin/sulfonal = 1)
+	results = list(/datum/reagent/toxin/lexorin = 3)
+	required_reagents = list(/datum/reagent/toxin/plasma = 1, /datum/reagent/hydrogen = 1, /datum/reagent/medicine/salbutamol = 1)
+
+/datum/chemical_reaction/hot_ice_melt
+	results = list(/datum/reagent/toxin/plasma = 12) //One sheet of hot ice makes 200m of plasma
+	required_reagents = list(/datum/reagent/toxin/hot_ice = 1)
+	required_temp = T0C + 30 //Don't burst into flames when you melt
+	thermic_constant = -200//Counter the heat
 
 /datum/chemical_reaction/chloralhydrate
 	name = "Chloral Hydrate"

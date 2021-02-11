@@ -13,7 +13,10 @@
 	taste_mult = 4
 	var/nutriment_factor = 1 * REAGENTS_METABOLISM
 	var/quality = 0	//affects mood, typically higher for mixed drinks with more complex recipes
-	random_unrestricted = FALSE
+	impure_chem = /datum/reagent/water
+	inverse_chem_val = 0.1
+	inverse_chem = /datum/reagent/water
+	failed_chem = /datum/reagent/consumable/nutriment
 
 /datum/reagent/consumable/on_mob_life(mob/living/carbon/M)
 	current_cycle++
@@ -69,6 +72,7 @@
 	data = counterlist_normalise(supplied_data)
 
 /datum/reagent/consumable/nutriment/on_merge(list/newdata, newvolume)
+	. = ..()
 	if(!islist(newdata) || !newdata.len)
 		return
 
@@ -232,7 +236,7 @@
 	description = "A special oil that noticably chills the body. Extracted from Icepeppers and slimes."
 	color = "#8BA6E9" // rgb: 139, 166, 233
 	taste_description = "mint"
-	random_unrestricted = TRUE
+	ph = 13 //HMM! I wonder
 
 /datum/reagent/consumable/frostoil/on_mob_life(mob/living/carbon/M)
 	var/cooling = 0
@@ -277,6 +281,8 @@
 	description = "A chemical agent used for self-defense and in police work."
 	color = "#B31008" // rgb: 179, 16, 8
 	taste_description = "scorching agony"
+	penetrates_skin = NONE
+	ph = 7.4
 
 /datum/reagent/consumable/condensedcapsaicin/reaction_mob(mob/living/M, method=TOUCH, reac_volume)
 	if(!ishuman(M) && !ismonkey(M))
@@ -365,6 +371,7 @@
 	color = "#E700E7" // rgb: 231, 0, 231
 	metabolization_rate = 0.2 * REAGENTS_METABOLISM
 	taste_description = "mushroom"
+	ph = 11
 
 /datum/reagent/drug/mushroomhallucinogen/on_mob_life(mob/living/carbon/M)
 	if(!M.slurring)
@@ -584,6 +591,7 @@
 	description = "A blinding substance extracted from certain onions."
 	color = "#c0c9a0"
 	taste_description = "bitterness"
+	ph = 5
 
 /datum/reagent/consumable/tearjuice/reaction_mob(mob/living/M, method=TOUCH, reac_volume)
 	if(!istype(M))
@@ -636,6 +644,7 @@
 	description = "An ichor derived from a certain mushroom. Makes for a bad time."
 	color = "#1d043d"
 	taste_description = "bitter mushroom"
+	ph = 12
 
 /datum/reagent/consumable/entpoly/on_mob_life(mob/living/carbon/M)
 	if(current_cycle >= 10)
@@ -656,6 +665,7 @@
 	description = "A stimulating ichor which causes luminescent fungi to grow on the skin. "
 	color = "#b5a213"
 	taste_description = "tingling mushroom"
+	ph = 11.2
 	//Lazy list of mobs affected by the luminosity of this reagent.
 	var/list/mobs_affected
 
@@ -688,6 +698,7 @@
 	color = "#d3a308"
 	nutriment_factor = 3 * REAGENTS_METABOLISM
 	taste_description = "fruity mushroom"
+	ph = 10.4
 
 /datum/reagent/consumable/vitfro/on_mob_life(mob/living/carbon/M)
 	if(prob(80))
@@ -702,6 +713,7 @@
 	nutriment_factor = 5 * REAGENTS_METABOLISM
 	color = "#eef442" // rgb: 238, 244, 66
 	taste_description = "mournful honking"
+	ph = 9.2
 
 
 /datum/reagent/consumable/liquidelectricity
@@ -737,6 +749,26 @@
 		M.adjust_disgust(10)
 	..()
 	. = 1
+
+/datum/reagent/consumable/secretsauce
+	name = "Secret Sauce"
+	description = "What could it be?"
+	nutriment_factor = 2 * REAGENTS_METABOLISM
+	color = "#792300"
+	taste_description = "indescribable"
+	quality = FOOD_AMAZING
+	taste_mult = 100
+	can_synth = FALSE
+	ph = 6.1
+
+/datum/reagent/consumable/nutriment/peptides
+	name = "Peptides"
+	color = "#BBD4D9"
+	taste_description = "mint frosting"
+	description = "These restorative peptides not only speed up wound healing, but are nutritious as well!"
+	nutriment_factor = 10 * REAGENTS_METABOLISM // 33% less than nutriment to reduce weight gain
+	brute_heal = 3
+	burn_heal = 1
 
 /datum/reagent/consumable/caramel
 	name = "Caramel"

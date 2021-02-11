@@ -409,12 +409,20 @@ GENE SCANNER
 	SEND_SIGNAL(M, COMSIG_NANITE_SCAN, user, FALSE)
 
 /proc/chemscan(mob/living/user, mob/living/M)
-	if(istype(M))
-		if(M.reagents)
-			if(M.reagents.reagent_list.len)
-				to_chat(user, "<span class='notice'>Subject contains the following reagents:</span>")
-				for(var/datum/reagent/R in M.reagents.reagent_list)
-					to_chat(user, "<span class='notice'>[round(R.volume, 0.001)] units of [R.name][R.overdosed == 1 ? "</span> - <span class='boldannounce'>OVERDOSING</span>" : ".</span>"]")
+	if(user.incapacitated())
+		return
+
+	if(istype(M) && M.reagents)
+		var/render_list = list()
+		if(M.reagents.reagent_list.len)
+			render_list += "<span class='notice ml-1'>Subject contains the following reagents in their blood:</span>\n"
+			for(var/r in M.reagents.reagent_list)
+				var/datum/reagent/reagent = r
+				if(reagent.chemical_flags & REAGENT_INVISIBLE) //Don't show hidden chems on scanners
+					continue
+				render_list += "<span class='notice ml-2'>[round(reagent.volume, 0.001)] units of [reagent.name][reagent.overdosed ? "</span> - <span class='boldannounce'>OVERDOSING</span>" : ".</span>"]\n"
+		else
+			render_list += "<span class='notice ml-1'>Subject contains no reagents in their blood.</span>\n"
 			else
 				to_chat(user, "<span class='notice'>Subject contains no reagents.</span>")
 			if(M.reagents.addiction_list.len)

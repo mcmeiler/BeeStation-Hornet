@@ -18,6 +18,12 @@
 ///Used for doing dry runs of the reference finder, to test for feature completeness
 ///Slightly slower, higher in memory. Just not optimal
 //#define REFERENCE_TRACKING_DEBUG
+/*
+* Enables debug messages for every single reaction step. This is 1 message per 0.5s for a SINGLE reaction. Useful for tracking down bugs/asking me for help in the main reaction handiler (equilibrium.dm).
+*
+* * Requires TESTING to be defined to work.
+*/
+//#define REAGENTS_TESTING
 
 ///Run a lookup on things hard deleting by default.
 //#define GC_FAILURE_HARD_LOOKUP
