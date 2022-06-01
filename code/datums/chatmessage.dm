@@ -277,6 +277,8 @@ GLOBAL_LIST_INIT(job_colors_pastel, list(
 
 	// Register with the runechat SS to handle EOL and destruction
 	var/duration = lifespan - CHAT_MESSAGE_EOL_FADE
+	if(QDELETED(target))
+		return
 	fadertimer = addtimer(CALLBACK(src, .proc/end_of_life), duration, TIMER_STOPPABLE|TIMER_DELETE_ME, SSrunechat)
 
 /datum/chatmessage/proc/client_deleted(client/source)
