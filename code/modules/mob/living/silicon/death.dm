@@ -7,6 +7,8 @@
 /mob/living/silicon/death(gibbed)
 	if(!gibbed)
 		emote("deathgasp")
+	if(held_items)
+		drop_all_held_items()
 	diag_hud_set_status()
 	diag_hud_set_health()
 	update_health_hud()
