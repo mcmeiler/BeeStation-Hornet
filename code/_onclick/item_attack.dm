@@ -150,7 +150,7 @@
 		return
 	var/message_hit_area = ""
 	if(hit_area)
-		message_hit_area = " in the [hit_area]"
+		message_hit_area = " in [hit_area]"
 	var/attack_message = "[src] is [message_verb][message_hit_area] with [I]!"
 	var/attack_message_local = "You're [message_verb][message_hit_area] with [I]!"
 	if(user in viewers(src))
